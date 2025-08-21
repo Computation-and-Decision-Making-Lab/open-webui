@@ -2091,7 +2091,15 @@
 				/>
 			{/if}
 
-			<PaneGroup direction="horizontal" class="w-full h-full">
+      <PaneGroup direction="horizontal" class="w-full h-full">
+        <Pane defaultSize={20} minSize={15} class="h-full flex relative max-w-full flex-col">
+          <div class="w-full h-full flex items-center justify-center">
+            <img src="../../../../static/Panda.jpg" alt="Panda" class="w-full h-full object-cover" />
+          </div>
+        </Pane>
+
+        <PaneResizer class="w-1 hover:w-2 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-all duration-200" />
+
         <Pane defaultSize={20} minSize={15} maxSize={30} class="h-full flex relative max-w-full flex-col">
 					<Navbar
 						bind:this={navbarElement}
@@ -2113,19 +2121,7 @@
 						{initNewChat}
 						showBanners={!showCommands}
           />
-        </Pane>
 
-        <PaneResizer class="w-1 hover:w-2 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-all duration-200" />
-
-        <Pane defaultSize={40} minSize={25} maxSize={60} class="h-full flex flex-col border-r border-gray-200 dark:border-gray-700 relative">
-          <div class="w-full h-full flex items-center justify-center">
-            <img src="../../../../static/Panda.jpg" alt="Panda" class="w-full h-full object-cover" />
-          </div>
-        </Pane>
-
-        <PaneResizer class="w-1 hover:w-2 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-all duration-200" />
-
-        <Pane defaultSize={40} minSize={30} class="h-full flex flex-col relative">
 					<div class="flex flex-col flex-auto z-10 w-full @container overflow-auto">
 						{#if ($settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
 							<div

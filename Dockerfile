@@ -135,8 +135,3 @@ ENV DOCKER=true
 
 CMD [ "bash", "start.sh"]
 
-FROM base AS dev
-
-RUN pip3 install --no-cache-dir watchgod
-
-CMD ["watchgod", "--reload", "bash", "start.sh"]
