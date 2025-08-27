@@ -2094,7 +2094,7 @@
       <PaneGroup direction="horizontal" class="w-full h-full">
         <Pane defaultSize={20} minSize={15} class="h-full flex relative max-w-full flex-col">
           <div class="w-full h-full flex items-center justify-center">
-            <img src="../../../../static/Panda.jpg" alt="Panda" class="w-full h-full object-cover" />
+            Panda
           </div>
         </Pane>
 
