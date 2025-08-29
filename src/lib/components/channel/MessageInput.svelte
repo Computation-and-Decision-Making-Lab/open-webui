@@ -12,7 +12,6 @@
 		blobToFile,
 		compressImage,
 		extractInputVariables,
-		getAge,
 		getCurrentDateTime,
 		getFormattedDate,
 		getFormattedTime,
@@ -32,9 +31,9 @@
 	import FilesOverlay from '../chat/MessageInput/FilesOverlay.svelte';
 	import Commands from '../chat/MessageInput/Commands.svelte';
 	import InputVariablesModal from '../chat/MessageInput/InputVariablesModal.svelte';
-	import { getSessionUser } from '$lib/apis/auths';
 
 	export let placeholder = $i18n.t('Send a Message');
+	export let transparentBackground = false;
 
 	export let id = null;
 
@@ -61,7 +60,7 @@
 	export let scrollToBottom: Function = () => {};
 
 	export let acceptFiles = true;
-	export let showFormattingToolbar = true;
+	export let showFormattingButtons = true;
 
 	let showInputVariablesModal = false;
 	let inputVariables: Record<string, any> = {};
@@ -118,45 +117,9 @@
 			text = text.replaceAll('{{USER_LOCATION}}', String(location));
 		}
 
-		const sessionUser = await getSessionUser(localStorage.token);
-
 		if (text.includes('{{USER_NAME}}')) {
-			const name = sessionUser?.name || 'User';
+			const name = $user?.name || 'User';
 			text = text.replaceAll('{{USER_NAME}}', name);
-		}
-
-		if (text.includes('{{USER_BIO}}')) {
-			const bio = sessionUser?.bio || '';
-
-			if (bio) {
-				text = text.replaceAll('{{USER_BIO}}', bio);
-			}
-		}
-
-		if (text.includes('{{USER_GENDER}}')) {
-			const gender = sessionUser?.gender || '';
-
-			if (gender) {
-				text = text.replaceAll('{{USER_GENDER}}', gender);
-			}
-		}
-
-		if (text.includes('{{USER_BIRTH_DATE}}')) {
-			const birthDate = sessionUser?.date_of_birth || '';
-
-			if (birthDate) {
-				text = text.replaceAll('{{USER_BIRTH_DATE}}', birthDate);
-			}
-		}
-
-		if (text.includes('{{USER_AGE}}')) {
-			const birthDate = sessionUser?.date_of_birth || '';
-
-			if (birthDate) {
-				// calculate age using date
-				const age = getAge(birthDate);
-				text = text.replaceAll('{{USER_AGE}}', age);
-			}
 		}
 
 		if (text.includes('{{USER_LANGUAGE}}')) {
@@ -364,9 +327,7 @@
 					let imageUrl = event.target.result;
 
 					// Compress the image if settings or config require it
-					if ($settings?.imageCompression && $settings?.imageCompressionInChannels) {
-						imageUrl = await compressImageHandler(imageUrl, $settings, $config);
-					}
+					imageUrl = await compressImageHandler(imageUrl, $settings, $config);
 
 					files = [
 						...files,
@@ -739,7 +700,7 @@
 									bind:this={chatInputElement}
 									json={true}
 									messageInput={true}
-									{showFormattingToolbar}
+									{showFormattingButtons}
 									shiftEnter={!($settings?.ctrlEnterToSend ?? false) &&
 										(!$mobile ||
 											!(

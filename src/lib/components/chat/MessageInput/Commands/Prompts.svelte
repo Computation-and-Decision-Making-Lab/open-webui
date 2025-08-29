@@ -59,10 +59,8 @@
 		onSelect({ type: 'prompt', data: command });
 	};
 
-	onMount(async () => {
+	onMount(() => {
 		window.addEventListener('resize', adjustHeight);
-
-		await tick();
 		adjustHeight();
 	});
 

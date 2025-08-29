@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, onMount, tick } from 'svelte';
+	import { getContext, tick } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { config, models, settings, user } from '$lib/stores';
 	import { updateUserSettings } from '$lib/apis/users';
@@ -24,19 +24,13 @@
 
 	export let show = false;
 
-	$: if (show) {
-		addScrollListener();
-	} else {
-		removeScrollListener();
-	}
-
 	interface SettingsTab {
 		id: string;
 		title: string;
 		keywords: string[];
 	}
 
-	const allSettings: SettingsTab[] = [
+	const searchData: SettingsTab[] = [
 		{
 			id: 'general',
 			title: 'General',
@@ -197,32 +191,43 @@
 				'web search in chat'
 			]
 		},
-		{
-			id: 'connections',
-			title: 'Connections',
-			keywords: [
-				'addconnection',
-				'add connection',
-				'manageconnections',
-				'manage connections',
-				'manage direct connections',
-				'managedirectconnections',
-				'settings'
-			]
-		},
-		{
-			id: 'tools',
-			title: 'Tools',
-			keywords: [
-				'addconnection',
-				'add connection',
-				'managetools',
-				'manage tools',
-				'manage tool servers',
-				'managetoolservers',
-				'settings'
-			]
-		},
+		...($user?.role === 'admin' ||
+		($user?.role === 'user' && $config?.features?.enable_direct_connections)
+			? [
+					{
+						id: 'connections',
+						title: 'Connections',
+						keywords: [
+							'addconnection',
+							'add connection',
+							'manageconnections',
+							'manage connections',
+							'manage direct connections',
+							'managedirectconnections',
+							'settings'
+						]
+					}
+				]
+			: []),
+
+		...($user?.role === 'admin' ||
+		($user?.role === 'user' && $user?.permissions?.features?.direct_tool_servers)
+			? [
+					{
+						id: 'tools',
+						title: 'Tools',
+						keywords: [
+							'addconnection',
+							'add connection',
+							'managetools',
+							'manage tools',
+							'manage tool servers',
+							'managetoolservers',
+							'settings'
+						]
+					}
+				]
+			: []),
 
 		{
 			id: 'personalization',
@@ -459,52 +464,28 @@
 		}
 	];
 
-	let availableSettings = [];
-	let filteredSettings = [];
-
 	let search = '';
+	let visibleTabs = searchData.map((tab) => tab.id);
 	let searchDebounceTimeout;
 
-	const getAvailableSettings = () => {
-		return allSettings.filter((tab) => {
-			if (tab.id === 'connections') {
-				return $config?.features?.enable_direct_connections;
-			}
-
-			if (tab.id === 'tools') {
-				return (
-					$user?.role === 'admin' ||
-					($user?.role === 'user' && $user?.permissions?.features?.direct_tool_servers)
-				);
-			}
-
-			return true;
-		});
-	};
-
-	const setFilteredSettings = () => {
-		filteredSettings = availableSettings
-			.filter((tab) => {
-				return (
-					search === '' ||
-					tab.title.toLowerCase().includes(search.toLowerCase().trim()) ||
-					tab.keywords.some((keyword) => keyword.includes(search.toLowerCase().trim()))
-				);
-			})
+	const searchSettings = (query: string): string[] => {
+		const lowerCaseQuery = query.toLowerCase().trim();
+		return searchData
+			.filter(
+				(tab) =>
+					tab.title.toLowerCase().includes(lowerCaseQuery) ||
+					tab.keywords.some((keyword) => keyword.includes(lowerCaseQuery))
+			)
 			.map((tab) => tab.id);
-
-		if (filteredSettings.length > 0 && !filteredSettings.includes(selectedTab)) {
-			selectedTab = filteredSettings[0];
-		}
 	};
 
 	const searchDebounceHandler = () => {
-		if (searchDebounceTimeout) {
-			clearTimeout(searchDebounceTimeout);
-		}
-
+		clearTimeout(searchDebounceTimeout);
 		searchDebounceTimeout = setTimeout(() => {
-			setFilteredSettings();
+			visibleTabs = searchSettings(search);
+			if (visibleTabs.length > 0 && !visibleTabs.includes(selectedTab)) {
+				selectedTab = visibleTabs[0];
+			}
 		}, 100);
 	};
 
@@ -549,15 +530,11 @@
 		}
 	};
 
-	onMount(() => {
-		availableSettings = getAvailableSettings();
-		setFilteredSettings();
-
-		config.subscribe((configData) => {
-			availableSettings = getAvailableSettings();
-			setFilteredSettings();
-		});
-	});
+	$: if (show) {
+		addScrollListener();
+	} else {
+		removeScrollListener();
+	}
 </script>
 
 <Modal size="lg" bind:show>
@@ -598,8 +575,8 @@
 						placeholder={$i18n.t('Search')}
 					/>
 				</div>
-				{#if filteredSettings.length > 0}
-					{#each filteredSettings as tabId (tabId)}
+				{#if visibleTabs.length > 0}
+					{#each visibleTabs as tabId (tabId)}
 						{#if tabId === 'general'}
 							<button
 								role="tab"

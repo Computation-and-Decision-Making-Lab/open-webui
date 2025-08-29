@@ -1,13 +1,12 @@
 <script lang="ts">
 	import type { Banner } from '$lib/types';
-	import { onMount, createEventDispatcher, getContext } from 'svelte';
+	import { onMount, createEventDispatcher } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import DOMPurify from 'dompurify';
 	import { marked } from 'marked';
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
 	const dispatch = createEventDispatcher();
-	const i18n = getContext('i18n');
 
 	export let banner: Banner = {
 		id: '',
@@ -15,7 +14,7 @@
 		title: '',
 		content: '',
 		url: '',
-		dismissible: true,
+		dismissable: true,
 		timestamp: Math.floor(Date.now() / 1000)
 	};
 	export let className = 'mx-4';
@@ -55,17 +54,7 @@
 						class=" text-xs font-bold {classNames[banner.type] ??
 							classNames['info']}  w-fit px-2 rounded-sm uppercase line-clamp-1 mr-0.5"
 					>
-						{#if banner.type.toLowerCase() === 'info'}
-							{$i18n.t('Info')}
-						{:else if banner.type.toLowerCase() === 'warning'}
-							{$i18n.t('Warning')}
-						{:else if banner.type.toLowerCase() === 'error'}
-							{$i18n.t('Error')}
-						{:else if banner.type.toLowerCase() === 'success'}
-							{$i18n.t('Success')}
-						{:else}
-							{banner.type}
-						{/if}
+						{banner.type}
 					</div>
 
 					{#if banner.url}
@@ -73,17 +62,14 @@
 							<a
 								class="text-gray-700 dark:text-white text-xs font-semibold underline"
 								href="{WEBUI_BASE_URL}/assets/files/whitepaper.pdf"
-								target="_blank"
+								target="_blank">Learn More</a
 							>
-								{$i18n.t('Learn More')}
-							</a>
 
 							<div
 								class=" ml-1 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-white"
 							>
 								<!--  -->
 								<svg
-									aria-hidden="true"
 									xmlns="http://www.w3.org/2000/svg"
 									viewBox="0 0 16 16"
 									fill="currentColor"
@@ -109,15 +95,12 @@
 					<a
 						class="text-gray-700 dark:text-white text-xs font-semibold underline"
 						href="/"
-						target="_blank"
+						target="_blank">Learn More</a
 					>
-						{$i18n.t('Learn More')}
-					</a>
 
 					<div class=" ml-1 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-white">
 						<!--  -->
 						<svg
-							aria-hidden="true"
 							xmlns="http://www.w3.org/2000/svg"
 							viewBox="0 0 16 16"
 							fill="currentColor"
@@ -134,7 +117,6 @@
 			{/if}
 			<div class="flex self-start">
 				<button
-					aria-label={$i18n.t('Close Banner')}
 					on:click={() => {
 						dismiss(banner.id);
 					}}

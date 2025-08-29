@@ -26,7 +26,7 @@
 
 <ImagePreview bind:show={showImagePreview} src={_src} {alt} />
 
-<div class=" relative group w-fit flex items-center">
+<div class=" relative group w-fit">
 	<button
 		class={className}
 		on:click={() => {

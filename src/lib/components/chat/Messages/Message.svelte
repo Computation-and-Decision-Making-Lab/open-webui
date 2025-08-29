@@ -41,8 +41,6 @@
 	export let addMessages;
 	export let triggerScroll;
 	export let readOnly = false;
-	export let editCodeBlock = true;
-	export let topPadding = false;
 </script>
 
 <div
@@ -54,7 +52,6 @@
 		{#if history.messages[messageId].role === 'user'}
 			<UserMessage
 				{user}
-				{chatId}
 				{history}
 				{messageId}
 				isFirstMessage={idx === 0}
@@ -69,8 +66,6 @@
 				{editMessage}
 				{deleteMessage}
 				{readOnly}
-				{editCodeBlock}
-				{topPadding}
 			/>
 		{:else if (history.messages[history.messages[messageId].parentId]?.models?.length ?? 1) === 1}
 			<ResponseMessage
@@ -95,8 +90,6 @@
 				{regenerateResponse}
 				{addMessages}
 				{readOnly}
-				{editCodeBlock}
-				{topPadding}
 			/>
 		{:else}
 			<MultiResponseMessages
@@ -119,8 +112,6 @@
 				{triggerScroll}
 				{addMessages}
 				{readOnly}
-				{editCodeBlock}
-				{topPadding}
 			/>
 		{/if}
 	{/if}

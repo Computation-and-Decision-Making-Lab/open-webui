@@ -1,30 +1,18 @@
 import json
 import uuid
 from open_webui.utils.redis import get_redis_connection
-from open_webui.env import REDIS_KEY_PREFIX
 from typing import Optional, List, Tuple
 import pycrdt as Y
 
 
 class RedisLock:
-    def __init__(
-        self,
-        redis_url,
-        lock_name,
-        timeout_secs,
-        redis_sentinels=[],
-        redis_cluster=False,
-    ):
-
+    def __init__(self, redis_url, lock_name, timeout_secs, redis_sentinels=[]):
         self.lock_name = lock_name
         self.lock_id = str(uuid.uuid4())
         self.timeout_secs = timeout_secs
         self.lock_obtained = False
         self.redis = get_redis_connection(
-            redis_url,
-            redis_sentinels,
-            redis_cluster=redis_cluster,
-            decode_responses=True,
+            redis_url, redis_sentinels, decode_responses=True
         )
 
     def aquire_lock(self):
@@ -47,13 +35,10 @@ class RedisLock:
 
 
 class RedisDict:
-    def __init__(self, name, redis_url, redis_sentinels=[], redis_cluster=False):
+    def __init__(self, name, redis_url, redis_sentinels=[]):
         self.name = name
         self.redis = get_redis_connection(
-            redis_url,
-            redis_sentinels,
-            redis_cluster=redis_cluster,
-            decode_responses=True,
+            redis_url, redis_sentinels, decode_responses=True
         )
 
     def __setitem__(self, key, value):
@@ -112,7 +97,7 @@ class YdocManager:
     def __init__(
         self,
         redis=None,
-        redis_key_prefix: str = f"{REDIS_KEY_PREFIX}:ydoc:documents",
+        redis_key_prefix: str = "open-webui:ydoc:documents",
     ):
         self._updates = {}
         self._users = {}

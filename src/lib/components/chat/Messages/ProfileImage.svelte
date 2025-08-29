@@ -7,7 +7,6 @@
 
 <img
 	crossorigin="anonymous"
-	aria-hidden="true"
 	src={src === ''
 		? `${WEBUI_BASE_URL}/static/favicon.png`
 		: src.startsWith(WEBUI_BASE_URL) ||

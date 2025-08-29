@@ -15,8 +15,7 @@
 		getChatList,
 		getChatListByTagName,
 		getPinnedChatList,
-		updateChatById,
-		updateChatFolderIdById
+		updateChatById
 	} from '$lib/apis/chats';
 	import {
 		chatId,
@@ -137,36 +136,10 @@
 		dispatch('change');
 	};
 
-	const moveChatHandler = async (chatId, folderId) => {
-		if (chatId && folderId) {
-			const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch(
-				(error) => {
-					toast.error(`${error}`);
-					return null;
-				}
-			);
-
-			if (res) {
-				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
-				await pinnedChats.set(await getPinnedChatList(localStorage.token));
-
-				dispatch('change');
-
-				toast.success($i18n.t('Chat moved successfully'));
-			}
-		} else {
-			toast.error($i18n.t('Failed to move chat'));
-		}
-	};
-
 	let itemElement;
 
 	let generating = false;
-
-	let ignoreBlur = false;
 	let doubleClicked = false;
-
 	let dragged = false;
 	let x = 0;
 	let y = 0;
@@ -208,18 +181,8 @@
 		dragged = false;
 	};
 
-	const onClickOutside = (event) => {
-		if (confirmEdit && !event.target.closest(`#chat-title-input-${id}`)) {
-			confirmEdit = false;
-			ignoreBlur = false;
-			chatTitle = '';
-		}
-	};
-
 	onMount(() => {
 		if (itemElement) {
-			document.addEventListener('click', onClickOutside, true);
-
 			// Event listener for when dragging starts
 			itemElement.addEventListener('dragstart', onDragStart);
 			// Event listener for when dragging occurs (optional)
@@ -231,8 +194,6 @@
 
 	onDestroy(() => {
 		if (itemElement) {
-			document.removeEventListener('click', onClickOutside, true);
-
 			itemElement.removeEventListener('dragstart', onDragStart);
 			itemElement.removeEventListener('drag', onDrag);
 			itemElement.removeEventListener('dragend', onDragEnd);
@@ -353,16 +314,10 @@
 				bind:value={chatTitle}
 				class=" bg-transparent w-full outline-hidden mr-10"
 				placeholder={generating ? $i18n.t('Generating...') : ''}
-				disabled={generating}
 				on:keydown={chatTitleInputKeydownHandler}
 				on:blur={async (e) => {
 					// check if target is generate button
-					if (ignoreBlur) {
-						ignoreBlur = false;
-
-						if (e.relatedTarget?.id === 'generate-title-button') {
-							generateTitleHandler();
-						}
+					if (e.relatedTarget?.id === 'generate-title-button') {
 						return;
 					}
 
@@ -462,11 +417,14 @@
 			>
 				<Tooltip content={$i18n.t('Generate')}>
 					<button
-						class=" self-center dark:hover:text-white transition disabled:cursor-not-allowed"
+						class=" self-center dark:hover:text-white transition"
 						id="generate-title-button"
-						disabled={generating}
-						on:mouseenter={() => {
-							ignoreBlur = true;
+						on:click={(e) => {
+							e.preventDefault();
+							e.stopImmediatePropagation();
+							e.stopPropagation();
+
+							generateTitleHandler();
 						}}
 					>
 						<Sparkles strokeWidth="2" />
@@ -509,7 +467,6 @@
 					shareHandler={() => {
 						showShareChatModal = true;
 					}}
-					{moveChatHandler}
 					archiveChatHandler={() => {
 						archiveChatHandler(id);
 					}}

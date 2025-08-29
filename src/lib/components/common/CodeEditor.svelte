@@ -127,14 +127,9 @@
 			let timeout;
 			const worker = getPyodideWorker();
 
-			const startTag = `--||CODE-START-${id}||--`;
-			const endTag = `--||CODE-END-${id}||--`;
-
 			const script = `
 import black
-print("${startTag}")
 print(black.format_str("""${code.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/"/g, '\\"')}""", mode=black.Mode()))
-print("${endTag}")
 `;
 
 			const packages = ['black'];
@@ -149,20 +144,7 @@ print("${endTag}")
 				if (stderr) {
 					reject(stderr);
 				} else {
-					function extractBetweenDelimiters(stdout, start, end) {
-						console.log('stdout', stdout);
-						const startIdx = stdout.indexOf(start);
-						const endIdx = stdout.indexOf(end, startIdx + start.length);
-						if (startIdx === -1 || endIdx === -1) return null;
-						return stdout.slice(startIdx + start.length, endIdx).trim();
-					}
-
-					const formatted = extractBetweenDelimiters(
-						stdout && typeof stdout === 'string' ? stdout : '',
-						startTag,
-						endTag
-					);
-
+					const formatted = stdout && typeof stdout === 'string' ? stdout.trim() : '';
 					resolve({ code: formatted });
 				}
 			}
@@ -225,7 +207,7 @@ print("${endTag}")
 		basicSetup,
 		keymap.of([{ key: 'Tab', run: acceptCompletion }, indentWithTab]),
 		indentUnit.of('    '),
-		placeholder($i18n.t('Enter your code here...')),
+		placeholder('Enter your code here...'),
 		EditorView.updateListener.of((e) => {
 			if (e.docChanged) {
 				_value = e.state.doc.toString();

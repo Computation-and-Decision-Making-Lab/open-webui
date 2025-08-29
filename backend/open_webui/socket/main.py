@@ -22,11 +22,9 @@ from open_webui.env import (
     ENABLE_WEBSOCKET_SUPPORT,
     WEBSOCKET_MANAGER,
     WEBSOCKET_REDIS_URL,
-    WEBSOCKET_REDIS_CLUSTER,
     WEBSOCKET_REDIS_LOCK_TIMEOUT,
     WEBSOCKET_SENTINEL_PORT,
     WEBSOCKET_SENTINEL_HOSTS,
-    REDIS_KEY_PREFIX,
 )
 from open_webui.utils.auth import decode_token
 from open_webui.socket.utils import RedisDict, RedisLock, YdocManager
@@ -87,7 +85,6 @@ if WEBSOCKET_MANAGER == "redis":
         redis_sentinels=get_sentinels_from_env(
             WEBSOCKET_SENTINEL_HOSTS, WEBSOCKET_SENTINEL_PORT
         ),
-        redis_cluster=WEBSOCKET_REDIS_CLUSTER,
         async_mode=True,
     )
 
@@ -95,30 +92,26 @@ if WEBSOCKET_MANAGER == "redis":
         WEBSOCKET_SENTINEL_HOSTS, WEBSOCKET_SENTINEL_PORT
     )
     SESSION_POOL = RedisDict(
-        f"{REDIS_KEY_PREFIX}:session_pool",
+        "open-webui:session_pool",
         redis_url=WEBSOCKET_REDIS_URL,
         redis_sentinels=redis_sentinels,
-        redis_cluster=WEBSOCKET_REDIS_CLUSTER,
     )
     USER_POOL = RedisDict(
-        f"{REDIS_KEY_PREFIX}:user_pool",
+        "open-webui:user_pool",
         redis_url=WEBSOCKET_REDIS_URL,
         redis_sentinels=redis_sentinels,
-        redis_cluster=WEBSOCKET_REDIS_CLUSTER,
     )
     USAGE_POOL = RedisDict(
-        f"{REDIS_KEY_PREFIX}:usage_pool",
+        "open-webui:usage_pool",
         redis_url=WEBSOCKET_REDIS_URL,
         redis_sentinels=redis_sentinels,
-        redis_cluster=WEBSOCKET_REDIS_CLUSTER,
     )
 
     clean_up_lock = RedisLock(
         redis_url=WEBSOCKET_REDIS_URL,
-        lock_name=f"{REDIS_KEY_PREFIX}:usage_cleanup_lock",
+        lock_name="usage_cleanup_lock",
         timeout_secs=WEBSOCKET_REDIS_LOCK_TIMEOUT,
         redis_sentinels=redis_sentinels,
-        redis_cluster=WEBSOCKET_REDIS_CLUSTER,
     )
     aquire_func = clean_up_lock.aquire_lock
     renew_func = clean_up_lock.renew_lock
@@ -133,7 +126,7 @@ else:
 
 YDOC_MANAGER = YdocManager(
     redis=REDIS,
-    redis_key_prefix=f"{REDIS_KEY_PREFIX}:ydoc:documents",
+    redis_key_prefix="open-webui:ydoc:documents",
 )
 
 
@@ -266,9 +259,7 @@ async def connect(sid, environ, auth):
             user = Users.get_user_by_id(data["id"])
 
         if user:
-            SESSION_POOL[sid] = user.model_dump(
-                exclude=["date_of_birth", "bio", "gender"]
-            )
+            SESSION_POOL[sid] = user.model_dump()
             if user.id in USER_POOL:
                 USER_POOL[user.id] = USER_POOL[user.id] + [sid]
             else:
@@ -290,7 +281,7 @@ async def user_join(sid, data):
     if not user:
         return
 
-    SESSION_POOL[sid] = user.model_dump(exclude=["date_of_birth", "bio", "gender"])
+    SESSION_POOL[sid] = user.model_dump()
     if user.id in USER_POOL:
         USER_POOL[user.id] = USER_POOL[user.id] + [sid]
     else:
@@ -590,7 +581,7 @@ async def yjs_document_leave(sid, data):
         )
 
         if (
-            await YDOC_MANAGER.document_exists(document_id)
+            YDOC_MANAGER.document_exists(document_id)
             and len(await YDOC_MANAGER.get_users(document_id)) == 0
         ):
             log.info(f"Cleaning up document {document_id} as no users are left")
@@ -704,42 +695,6 @@ def get_event_emitter(request_info, update_db=True):
                         "content": content,
                     },
                 )
-
-            if "type" in event_data and event_data["type"] == "files":
-                message = Chats.get_message_by_id_and_message_id(
-                    request_info["chat_id"],
-                    request_info["message_id"],
-                )
-
-                files = event_data.get("data", {}).get("files", [])
-                files.extend(message.get("files", []))
-
-                Chats.upsert_message_to_chat_by_id_and_message_id(
-                    request_info["chat_id"],
-                    request_info["message_id"],
-                    {
-                        "files": files,
-                    },
-                )
-
-            if event_data.get("type") in ["source", "citation"]:
-                data = event_data.get("data", {})
-                if data.get("type") == None:
-                    message = Chats.get_message_by_id_and_message_id(
-                        request_info["chat_id"],
-                        request_info["message_id"],
-                    )
-
-                    sources = message.get("sources", [])
-                    sources.append(data)
-
-                    Chats.upsert_message_to_chat_by_id_and_message_id(
-                        request_info["chat_id"],
-                        request_info["message_id"],
-                        {
-                            "sources": sources,
-                        },
-                    )
 
     return __event_emitter__
 

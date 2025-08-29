@@ -1,6 +1,4 @@
 <script lang="ts">
-	import hljs from 'highlight.js';
-
 	import mermaid from 'mermaid';
 
 	import { v4 as uuidv4 } from 'uuid';
@@ -24,7 +22,6 @@
 	const i18n = getContext('i18n');
 
 	export let id = '';
-	export let edit = true;
 
 	export let onSave = (e) => {};
 	export let onUpdate = (e) => {};
@@ -42,7 +39,7 @@
 
 	export let className = 'my-2';
 	export let editorClassName = '';
-	export let stickyButtonsClassName = 'top-0';
+	export let stickyButtonsClassName = 'top-8';
 
 	let pyodideWorker = null;
 
@@ -87,7 +84,7 @@
 
 	const copyCode = async () => {
 		copied = true;
-		await copyToClipboard(_code);
+		await copyToClipboard(code);
 
 		setTimeout(() => {
 			copied = false;
@@ -515,31 +512,17 @@
 				<div class=" pt-7 bg-gray-50 dark:bg-gray-850"></div>
 
 				{#if !collapsed}
-					{#if edit}
-						<CodeEditor
-							value={code}
-							{id}
-							{lang}
-							onSave={() => {
-								saveCode();
-							}}
-							onChange={(value) => {
-								_code = value;
-							}}
-						/>
-					{:else}
-						<pre
-							class=" hljs p-4 px-5 overflow-x-auto"
-							style="border-top-left-radius: 0px; border-top-right-radius: 0px; {(executing ||
-								stdout ||
-								stderr ||
-								result) &&
-								'border-bottom-left-radius: 0px; border-bottom-right-radius: 0px;'}"><code
-								class="language-{lang} rounded-t-none whitespace-pre text-sm"
-								>{@html hljs.highlightAuto(code, hljs.getLanguage(lang)?.aliases).value ||
-									code}</code
-							></pre>
-					{/if}
+					<CodeEditor
+						value={code}
+						{id}
+						{lang}
+						onSave={() => {
+							saveCode();
+						}}
+						onChange={(value) => {
+							_code = value;
+						}}
+					/>
 				{:else}
 					<div
 						class="bg-gray-50 dark:bg-black dark:text-white rounded-b-lg! pt-2 pb-2 px-4 flex flex-col gap-2 text-xs"
@@ -565,13 +548,13 @@
 					>
 						{#if executing}
 							<div class=" ">
-								<div class=" text-gray-500 text-xs mb-1">{$i18n.t('STDOUT/STDERR')}</div>
-								<div class="text-sm">{$i18n.t('Running...')}</div>
+								<div class=" text-gray-500 text-xs mb-1">STDOUT/STDERR</div>
+								<div class="text-sm">Running...</div>
 							</div>
 						{:else}
 							{#if stdout || stderr}
 								<div class=" ">
-									<div class=" text-gray-500 text-xs mb-1">{$i18n.t('STDOUT/STDERR')}</div>
+									<div class=" text-gray-500 text-xs mb-1">STDOUT/STDERR</div>
 									<div
 										class="text-sm {stdout?.split('\n')?.length > 100
 											? `max-h-96`
@@ -583,7 +566,7 @@
 							{/if}
 							{#if result || files}
 								<div class=" ">
-									<div class=" text-gray-500 text-xs mb-1">{$i18n.t('RESULT')}</div>
+									<div class=" text-gray-500 text-xs mb-1">RESULT</div>
 									{#if result}
 										<div class="text-sm">{`${JSON.stringify(result)}`}</div>
 									{/if}

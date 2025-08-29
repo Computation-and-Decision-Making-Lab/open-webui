@@ -68,6 +68,7 @@
 						(codeExecution?.result?.error || codeExecution?.result?.output)
 							? 'rounded-b-none'
 							: ''}
+						stickyButtonsClassName="top-0"
 						run={false}
 					/>
 				</div>

@@ -116,24 +116,11 @@
 		info.name = name;
 
 		if (id === '') {
-			toast.error($i18n.t('Model ID is required.'));
-			loading = false;
-
-			return;
+			toast.error('Model ID is required.');
 		}
 
 		if (name === '') {
-			toast.error($i18n.t('Model Name is required.'));
-			loading = false;
-
-			return;
-		}
-
-		if (knowledge.some((item) => item.status === 'uploading')) {
-			toast.error($i18n.t('Please wait until all files are uploaded.'));
-			loading = false;
-
-			return;
+			toast.error('Model Name is required.');
 		}
 
 		info.params = { ...info.params, ...params };
@@ -310,7 +297,7 @@
 					/>
 				</svg>
 			</div>
-			<div class=" self-center text-sm font-medium">{$i18n.t('Back')}</div>
+			<div class=" self-center text-sm font-medium">{'Back'}</div>
 		</button>
 	{/if}
 
@@ -450,7 +437,7 @@
 								}}
 								type="button"
 							>
-								{$i18n.t('Reset Image')}</button
+								Reset Image</button
 							>
 						</div>
 					</div>
@@ -489,7 +476,7 @@
 							<div>
 								<select
 									class="text-sm w-full bg-transparent outline-hidden"
-									placeholder={$i18n.t('Select a base model (e.g. llama3, gpt-4o)')}
+									placeholder="Select a base model (e.g. llama3, gpt-4o)"
 									bind:value={info.base_model_id}
 									on:change={(e) => {
 										addUsage(e.target.value);
@@ -582,9 +569,7 @@
 								<div>
 									<Textarea
 										className=" text-sm w-full bg-transparent outline-hidden resize-none overflow-y-hidden "
-										placeholder={$i18n.t(
-											'Write your model system prompt content here\ne.g.) You are Mario from Super Mario Bros, acting as an assistant.'
-										)}
+										placeholder={`Write your model system prompt content here\ne.g.) You are Mario from Super Mario Bros, acting as an assistant.`}
 										rows={4}
 										bind:value={system}
 									/>
@@ -701,7 +686,7 @@
 										</div>
 									{/each}
 								{:else}
-									<div class="text-xs text-center">{$i18n.t('No suggestion prompts')}</div>
+									<div class="text-xs text-center">No suggestion prompts</div>
 								{/if}
 							</div>
 						{/if}

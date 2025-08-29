@@ -50,7 +50,6 @@ export const channels = writable([]);
 export const chats = writable(null);
 export const pinnedChats = writable([]);
 export const tags = writable([]);
-export const folders = writable([]);
 
 export const selectedFolder = writable(null);
 

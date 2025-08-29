@@ -78,6 +78,7 @@
 
 	onMount(async () => {
 		window.addEventListener('resize', adjustHeight);
+		adjustHeight();
 
 		let notes = await getNoteList(localStorage.token).catch(() => {
 			return [];
@@ -174,9 +175,6 @@
 		fuse = new Fuse(items, {
 			keys: ['name', 'description']
 		});
-
-		await tick();
-		adjustHeight();
 	});
 
 	onDestroy(() => {

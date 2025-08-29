@@ -115,7 +115,7 @@
 				if (a.rating === '-' && b.rating !== '-') return 1;
 				if (b.rating === '-' && a.rating !== '-') return -1;
 				if (a.rating !== '-' && b.rating !== '-') return b.rating - a.rating;
-				return (a?.name ?? a?.id ?? '').localeCompare(b?.name ?? b?.id ?? '');
+				return a.name.localeCompare(b.name);
 			});
 
 		loadingLeaderboard = false;
@@ -151,8 +151,6 @@
 		}
 
 		feedbacks.forEach((feedback) => {
-			if (!feedback?.data?.model_id || !feedback?.data?.rating) return;
-
 			const modelA = feedback.data.model_id;
 			const statsA = getOrDefaultStats(modelA);
 			let outcome: number;
@@ -336,9 +334,7 @@
 	onClose={closeLeaderboardModal}
 />
 
-<div
-	class="pt-0.5 pb-2 gap-1 flex flex-col md:flex-row justify-between sticky top-0 z-10 bg-white dark:bg-gray-900"
->
+<div class="mt-0.5 mb-2 gap-1 flex flex-col md:flex-row justify-between">
 	<div class="flex md:self-center text-lg font-medium px-0.5 shrink-0 items-center">
 		<div class=" gap-1">
 			{$i18n.t('Leaderboard')}

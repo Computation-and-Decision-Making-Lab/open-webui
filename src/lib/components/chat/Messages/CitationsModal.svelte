@@ -5,7 +5,6 @@
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 	import XMark from '$lib/components/icons/XMark.svelte';
-	import Textarea from '$lib/components/common/Textarea.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -112,12 +111,15 @@
 								</div>
 							</Tooltip>
 							{#if document.metadata?.parameters}
-								<div class="text-sm font-medium dark:text-gray-300 mt-2 mb-0.5">
+								<div class="text-sm font-medium dark:text-gray-300 mt-2">
 									{$i18n.t('Parameters')}
 								</div>
-
-								<Textarea readonly value={JSON.stringify(document.metadata.parameters, null, 2)}
-								></Textarea>
+								<pre
+									class="text-sm dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded-md overflow-auto max-h-40">{JSON.stringify(
+										document.metadata.parameters,
+										null,
+										2
+									)}</pre>
 							{/if}
 							{#if showRelevance}
 								<div class="text-sm font-medium dark:text-gray-300 mt-2">
