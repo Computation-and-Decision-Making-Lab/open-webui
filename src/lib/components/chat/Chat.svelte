@@ -2100,7 +2100,7 @@
 
         <PaneResizer class="w-1 hover:w-2 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-all duration-200" />
 
-        <Pane defaultSize={20} minSize={15} maxSize={30} class="h-full flex relative max-w-full flex-col">
+        <Pane defaultSize={20} minSize={15} class="h-full flex relative max-w-full flex-col">
 					<Navbar
 						bind:this={navbarElement}
 						chat={{

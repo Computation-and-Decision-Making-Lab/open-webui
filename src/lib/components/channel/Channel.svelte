@@ -204,8 +204,16 @@
 		: ''} w-full max-w-full flex flex-col"
 	id="channel-container"
 >
-	<PaneGroup direction="horizontal" class="w-full h-full">
-		<Pane defaultSize={50} minSize={50} class="h-full flex flex-col w-full relative">
+  <PaneGroup direction="horizontal" class="w-full h-full">
+    <Pane defaultSize={20} minSize={15} class="h-full flex flex-col w-full relative">
+      <div class="w-full h-full flex items-center justify-center">
+        Panda 
+      </div>
+    </Pane>
+
+    <PaneResizer class="w-1 hover:w-2 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-all duration-200" />
+
+		<Pane defaultSize={20} minSize={15} class="h-full flex flex-col w-full relative">
 			<Navbar {channel} />
 
 			<div class="flex-1 overflow-y-auto">
