@@ -17,7 +17,7 @@
 	import { generateInitialsImage, canvasPixelTest } from '$lib/utils';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
-	import OnBoarding from '$lib/components/OnBoarding.svelte';
+  import OnBoarding from '$lib/components/OnBoarding.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -48,7 +48,7 @@
 			await user.set(sessionUser);
 			await config.set(await getBackendConfig());
 
-			const redirectPath = querystringValue('redirect') || '/';
+			const redirectPath = '/groups';
 			goto(redirectPath);
 		}
 	};
