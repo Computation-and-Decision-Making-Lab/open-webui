@@ -82,6 +82,7 @@
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
 	import Messages from '$lib/components/chat/Messages.svelte';
 	import Navbar from '$lib/components/chat/Navbar.svelte';
+	import CodeRenderer from './CodeRenderer.svelte';
 	import ChatControls from './ChatControls.svelte';
 	import EventConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Placeholder from './Placeholder.svelte';
@@ -146,6 +147,49 @@
 
 	$: if (chatIdProp) {
 		navigateHandler();
+	}
+	
+	let aiCodeBlock = '';
+	let aiCodeLanguage = '';
+	let iframeRef: HTMLIFrameElement;
+	let currentIframeContent = '';
+
+	$: {
+		aiCodeBlock = '';
+		aiCodeLanguage = '';
+
+		if (history.currentId) {
+			const currentMessage = history.messages[history.currentId];
+			if (currentMessage && currentMessage.role === 'assistant') {
+				const codeRegex = /```(\w+)\n([\s\S]+?)```/;
+				const match = currentMessage.content.match(codeRegex);
+				if (match) {
+					aiCodeLanguage = match[1];
+					aiCodeBlock = match[2];
+				}
+			}
+		}
+	}
+
+	$: if (iframeRef && aiCodeBlock) {
+		const newIframeContent = `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			</head>
+			<body>
+				${aiCodeLanguage === 'html' ? aiCodeBlock : ''}
+				${aiCodeLanguage === 'js' ? `<script>${aiCodeBlock}<\/script>` : ''}
+			</body>
+			</html>
+		`;
+
+		if (currentIframeContent !== newIframeContent) {
+			iframeRef.srcdoc = newIframeContent;
+			currentIframeContent = newIframeContent;
+		}
 	}
 
 	const navigateHandler = async () => {
@@ -305,6 +349,14 @@
 			if (message) {
 				const type = event?.data?.type ?? null;
 				const data = event?.data?.data ?? null;
+
+				if (type === 'chat:message:delta' || type === 'message') {
+					message.content += data.content;
+					renderMessageCode(message.content); // Call the new function
+				} else if (type === 'chat:message' || type === 'replace') {
+					message.content = data.content;
+					renderMessageCode(message.content); // Call the new function
+				}
 
 				if (type === 'status') {
 					if (message?.statusHistory) {
@@ -2093,9 +2145,20 @@
 
       <PaneGroup direction="horizontal" class="w-full h-full">
         <Pane defaultSize={20} minSize={15} class="h-full flex relative max-w-full flex-col">
-          <div class="w-full h-full flex items-center justify-center">
-            Panda
-          </div>
+					{#if aiCodeBlock}
+						<div class="h-full w-full p-4">
+							<iframe
+								bind:this={iframeRef}
+								class="w-full h-full border rounded-lg"
+								sandbox="allow-scripts allow-modals allow-same-origin"
+								title="AI Generated Content"
+							></iframe>
+						</div>
+					{:else}
+						<div class="flex h-full w-full items-center justify-center">
+							Panda
+						</div>
+					{/if}
         </Pane>
 
         <PaneResizer class="w-1 hover:w-2 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-all duration-200" />
