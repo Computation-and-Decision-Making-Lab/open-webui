@@ -130,6 +130,9 @@
 		return user ? user.name : userId;
 	};
 	
+	const handleGoBack = () => {
+		goto('/');
+	}
 	onMount(async () => {
 		if (!$user) {
 			goto('/auth');
@@ -151,6 +154,14 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex justify-between items-center">
+				<div class = "flex items-center">
+					<button
+						on:click={handleGoBack}
+						class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+					>
+						Back
+					</button>
+				</div>
 				<div>
 					<h1 class="text-2xl font-bold text-gray-900 dark:text-white">
 						{$i18n.t('Groups')}
