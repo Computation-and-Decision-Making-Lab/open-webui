@@ -178,6 +178,7 @@
 			<head>
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<style id="dynamic-style"></style>
 			</head>
 			<body>
 				${aiCodeLanguage === 'html' ? aiCodeBlock : ''}
@@ -189,6 +190,19 @@
 		if (currentIframeContent !== newIframeContent) {
 			iframeRef.srcdoc = newIframeContent;
 			currentIframeContent = newIframeContent;
+			
+			// Wait for the iframe to load and then inject the CSS
+			iframeRef.onload = () => {
+				const styleTag = iframeRef.contentDocument.getElementById('dynamic-style');
+				if (styleTag) {
+					if (aiCodeLanguage === 'css') {
+						styleTag.textContent = aiCodeBlock;
+					} else {
+						// For other languages, still add a valid comment to prevent errors
+						styleTag.textContent = '/* No CSS to display */';
+					}
+				}
+			};
 		}
 	}
 
