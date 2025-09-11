@@ -26,8 +26,7 @@ export const createNewGroup = async (token: string, group: object) => {
 
 	if (error) {
 		throw error;
-	}
-
+  }
 	return res;
 };
 

@@ -177,16 +177,11 @@
 				!$mobile &&
 				$chatId
 			) {
-				showArtifacts.set(true);
-				showControls.set(true);
 			}
 		}}
 		onPreview={async (value) => {
 			console.log('Preview', value);
 			await artifactCode.set(value);
-			await showControls.set(true);
-			await showArtifacts.set(true);
-			await showOverview.set(false);
 		}}
 	/>
 </div>

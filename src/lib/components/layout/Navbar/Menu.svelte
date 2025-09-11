@@ -305,7 +305,6 @@
 				id="chat-overview-button"
 				on:click={async () => {
 					await showControls.set(true);
-					await showArtifacts.set(true);
 					await showOverview.set(false);
 				}}
 			>

@@ -1,18 +1,14 @@
 import json
 import logging
 import time
-from typing import Optional
 import uuid
+from typing import Optional
 
-from open_webui.internal.db import Base, get_db
 from open_webui.env import SRC_LOG_LEVELS
-
+from open_webui.internal.db import Base, get_db
 from open_webui.models.files import FileMetadataResponse
-
-
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Column, String, Text, JSON, func
-
+from sqlalchemy import JSON, BigInteger, Column, String, Text, func
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
@@ -36,6 +32,9 @@ class Group(Base):
 
     permissions = Column(JSON, nullable=True)
     user_ids = Column(JSON, nullable=True)
+    
+    is_public = Column(JSON, nullable=True, default=True)  # Whether group is visible to all users
+    join_policy = Column(Text, nullable=True, default="open")  # "open", "request", "invite_only"
 
     created_at = Column(BigInteger)
     updated_at = Column(BigInteger)
@@ -54,6 +53,9 @@ class GroupModel(BaseModel):
 
     permissions: Optional[dict] = None
     user_ids: list[str] = []
+    
+    is_public: bool = True
+    join_policy: str = "open"
 
     created_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
@@ -73,6 +75,8 @@ class GroupResponse(BaseModel):
     data: Optional[dict] = None
     meta: Optional[dict] = None
     user_ids: list[str] = []
+    is_public: bool = True
+    join_policy: str = "open"
     created_at: int  # timestamp in epoch
     updated_at: int  # timestamp in epoch
 
@@ -81,6 +85,8 @@ class GroupForm(BaseModel):
     name: str
     description: str
     permissions: Optional[dict] = None
+    is_public: Optional[bool] = True
+    join_policy: Optional[str] = "open"
 
 
 class UserIdsForm(BaseModel):
@@ -89,6 +95,10 @@ class UserIdsForm(BaseModel):
 
 class GroupUpdateForm(GroupForm, UserIdsForm):
     pass
+
+
+class JoinGroupForm(BaseModel):
+    group_id: str
 
 
 class GroupTable:
@@ -120,13 +130,36 @@ class GroupTable:
                 return None
 
     def get_groups(self) -> list[GroupModel]:
+        """Get all groups (for admin use)"""
         with get_db() as db:
             return [
                 GroupModel.model_validate(group)
                 for group in db.query(Group).order_by(Group.updated_at.desc()).all()
             ]
 
+    def get_public_groups(self) -> list[GroupModel]:
+        """Get all public groups that users can discover and join"""
+        with get_db() as db:
+            return [
+                GroupModel.model_validate(group)
+                for group in db.query(Group)
+                .filter(Group.is_public == True)
+                .order_by(Group.updated_at.desc())
+                .all()
+            ]
+
+    def get_groups_for_user(self, user_id: str, user_role: str = "user") -> list[GroupModel]:
+        """Get groups based on user role - admins see all, users see public + their joined groups"""
+        with get_db() as db:
+            if user_role == "admin":
+                # Admins can see all groups
+                return self.get_groups()
+            else:
+                # Regular users see all public groups
+                return self.get_public_groups()
+
     def get_groups_by_member_id(self, user_id: str) -> list[GroupModel]:
+        """Get groups where user is a member"""
         with get_db() as db:
             return [
                 GroupModel.model_validate(group)
@@ -173,6 +206,65 @@ class GroupTable:
             log.exception(e)
             return None
 
+    def join_group(self, group_id: str, user_id: str) -> Optional[GroupModel]:
+        """Allow a user to join a group"""
+        try:
+            with get_db() as db:
+                group = db.query(Group).filter_by(id=group_id).first()
+                if not group:
+                    return None
+
+                # Check if group allows joining
+                if group.join_policy == "invite_only":
+                    return None
+
+                # Initialize user_ids if None
+                if not group.user_ids:
+                    group.user_ids = []
+
+                # Add user if not already a member
+                if user_id not in group.user_ids:
+                    group.user_ids.append(user_id)
+                    group.updated_at = int(time.time())
+                    db.commit()
+                    db.refresh(group)
+
+                return GroupModel.model_validate(group)
+        except Exception as e:
+            log.exception(e)
+            return None
+
+    def leave_group(self, group_id: str, user_id: str) -> Optional[GroupModel]:
+        """Allow a user to leave a group"""
+        try:
+            with get_db() as db:
+                group = db.query(Group).filter_by(id=group_id).first()
+                if not group:
+                    return None
+
+                # Initialize user_ids if None
+                if not group.user_ids:
+                    group.user_ids = []
+
+                # Remove user if they are a member
+                if user_id in group.user_ids:
+                    group.user_ids.remove(user_id)
+                    group.updated_at = int(time.time())
+                    db.commit()
+                    db.refresh(group)
+
+                return GroupModel.model_validate(group)
+        except Exception as e:
+            log.exception(e)
+            return None
+
+    def is_user_member(self, group_id: str, user_id: str) -> bool:
+        """Check if a user is a member of a group"""
+        group = self.get_group_by_id(group_id)
+        if not group or not group.user_ids:
+            return False
+        return user_id in group.user_ids
+
     def delete_group_by_id(self, id: str) -> bool:
         try:
             with get_db() as db:
@@ -198,14 +290,15 @@ class GroupTable:
                 groups = self.get_groups_by_member_id(user_id)
 
                 for group in groups:
-                    group.user_ids.remove(user_id)
-                    db.query(Group).filter_by(id=group.id).update(
-                        {
-                            "user_ids": group.user_ids,
-                            "updated_at": int(time.time()),
-                        }
-                    )
-                    db.commit()
+                    if group.user_ids and user_id in group.user_ids:
+                        group.user_ids.remove(user_id)
+                        db.query(Group).filter_by(id=group.id).update(
+                            {
+                                "user_ids": group.user_ids,
+                                "updated_at": int(time.time()),
+                            }
+                        )
+                        db.commit()
 
                 return True
             except Exception:
@@ -229,6 +322,8 @@ class GroupTable:
                         user_id=user_id,
                         name=group_name,
                         description="",
+                        is_public=True,
+                        join_policy="open",
                         created_at=int(time.time()),
                         updated_at=int(time.time()),
                     )
@@ -254,16 +349,19 @@ class GroupTable:
 
                 for group in existing_groups:
                     if group.id not in group_ids:
-                        group.user_ids.remove(user_id)
-                        db.query(Group).filter_by(id=group.id).update(
-                            {
-                                "user_ids": group.user_ids,
-                                "updated_at": int(time.time()),
-                            }
-                        )
+                        if group.user_ids and user_id in group.user_ids:
+                            group.user_ids.remove(user_id)
+                            db.query(Group).filter_by(id=group.id).update(
+                                {
+                                    "user_ids": group.user_ids,
+                                    "updated_at": int(time.time()),
+                                }
+                            )
 
                 # Add user to new groups
                 for group in groups:
+                    if not group.user_ids:
+                        group.user_ids = []
                     if user_id not in group.user_ids:
                         group.user_ids.append(user_id)
                         db.query(Group).filter_by(id=group.id).update(
