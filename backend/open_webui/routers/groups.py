@@ -12,6 +12,7 @@ from open_webui.models.groups import (
     GroupResponse,
     Groups,
     GroupUpdateForm,
+    JoinGroupForm,
     UserIdsForm,
 )
 from open_webui.models.users import Users
@@ -23,20 +24,145 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 router = APIRouter()
 
 ############################
-# GetFunctions
+# GetGroups
 ############################
 
 
 @router.get("/", response_model=list[GroupResponse])
 async def get_groups(user=Depends(get_verified_user)):
-    if user.role == "admin":
-        return Groups.get_groups()
-    else:
-        return Groups.get_groups_by_member_id(user.id)
+    """
+    Get groups based on user role:
+    - Admins see all groups
+    - Regular users see public groups they can discover and join
+    """
+    return Groups.get_groups_for_user(user.id, user.role)
 
 
 ############################
-# CreateNewGroup
+# GetPublicGroups
+############################
+
+
+@router.get("/public", response_model=list[GroupResponse])
+async def get_public_groups(user=Depends(get_verified_user)):
+    """
+    Get all public groups that users can discover and join
+    """
+    return Groups.get_public_groups()
+
+
+############################
+# GetMyGroups
+############################
+
+
+@router.get("/my", response_model=list[GroupResponse])
+async def get_my_groups(user=Depends(get_verified_user)):
+    """
+    Get groups where the current user is a member
+    """
+    return Groups.get_groups_by_member_id(user.id)
+
+
+############################
+# JoinGroup
+############################
+
+
+@router.post("/join", response_model=Optional[GroupResponse])
+async def join_group(form_data: JoinGroupForm, user=Depends(get_verified_user)):
+    """
+    Allow a user to join a public group
+    """
+    try:
+        # Check if group exists and is public
+        group = Groups.get_group_by_id(form_data.group_id)
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ERROR_MESSAGES.NOT_FOUND,
+            )
+
+        # Check if user can join this group
+        if not group.is_public and group.join_policy != "open":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ERROR_MESSAGES.DEFAULT("This group is not open for joining"),
+            )
+
+        # Check if user is already a member
+        if Groups.is_user_member(form_data.group_id, user.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.DEFAULT("You are already a member of this group"),
+            )
+
+        # Join the group
+        updated_group = Groups.join_group(form_data.group_id, user.id)
+        if updated_group:
+            return updated_group
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.DEFAULT("Error joining group"),
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(f"Error joining group {form_data.group_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.DEFAULT(e),
+        )
+
+
+############################
+# LeaveGroup
+############################
+
+
+@router.post("/leave", response_model=Optional[GroupResponse])
+async def leave_group(form_data: JoinGroupForm, user=Depends(get_verified_user)):
+    """
+    Allow a user to leave a group they are a member of
+    """
+    try:
+        # Check if group exists
+        group = Groups.get_group_by_id(form_data.group_id)
+        if not group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ERROR_MESSAGES.NOT_FOUND,
+            )
+
+        # Check if user is a member
+        if not Groups.is_user_member(form_data.group_id, user.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.DEFAULT("You are not a member of this group"),
+            )
+
+        # Leave the group
+        updated_group = Groups.leave_group(form_data.group_id, user.id)
+        if updated_group:
+            return updated_group
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.DEFAULT("Error leaving group"),
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception(f"Error leaving group {form_data.group_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.DEFAULT(e),
+        )
+
+
+############################
+# CreateNewGroup (Admin only)
 ############################
 
 
@@ -65,19 +191,31 @@ async def create_new_group(form_data: GroupForm, user=Depends(get_admin_user)):
 
 
 @router.get("/id/{id}", response_model=Optional[GroupResponse])
-async def get_group_by_id(id: str, user=Depends(get_admin_user)):
+async def get_group_by_id(id: str, user=Depends(get_verified_user)):
+    """
+    Get group by ID. Regular users can only see public groups or groups they're members of
+    """
     group = Groups.get_group_by_id(id)
-    if group:
-        return group
-    else:
+    if not group:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
+    # Check if user has permission to view this group
+    if user.role != "admin":
+        # Regular users can only see public groups or groups they're members of
+        if not group.is_public and not Groups.is_user_member(id, user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ERROR_MESSAGES.DEFAULT("Access denied"),
+            )
+
+    return group
+
 
 ############################
-# UpdateGroupById
+# UpdateGroupById (Admin only)
 ############################
 
 
@@ -106,7 +244,7 @@ async def update_group_by_id(
 
 
 ############################
-# AddUserToGroupByUserIdAndGroupId
+# AddUserToGroupByUserIdAndGroupId (Admin only)
 ############################
 
 
@@ -134,6 +272,11 @@ async def add_user_to_group(
         )
 
 
+############################
+# RemoveUsersFromGroup (Admin only)
+############################
+
+
 @router.post("/id/{id}/users/remove", response_model=Optional[GroupResponse])
 async def remove_users_from_group(
     id: str, form_data: UserIdsForm, user=Depends(get_admin_user)
@@ -156,7 +299,7 @@ async def remove_users_from_group(
 
 
 ############################
-# DeleteGroupById
+# DeleteGroupById (Admin only)
 ############################
 
 
