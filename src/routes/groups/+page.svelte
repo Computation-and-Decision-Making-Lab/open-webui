@@ -4,17 +4,20 @@
 	import { toast } from 'svelte-sonner';
 	
 	import { user } from '$lib/stores';
-	import { getGroups, createNewGroup, getGroupById, updateGroupById, deleteGroupById } from '$lib/apis/groups';
+	import { getGroups, getPublicGroups, getMyGroups, joinGroup, leaveGroup, createNewGroup, getGroupById, updateGroupById, deleteGroupById } from '$lib/apis/groups';
 	import { getAllUsers } from '$lib/apis/users';
 	
 	const i18n = getContext('i18n');
 	
 	let groups = [];
+	let publicGroups = [];
+	let myGroups = [];
 	let users = [];
 	let loading = true;
 	let showCreateModal = false;
 	let showEditModal = false;
 	let selectedGroup = null;
+	let activeTab = 'all'; // 'all', 'public', 'my'
 	
 	// Form data
 	let groupName = '';
@@ -24,10 +27,32 @@
 	const loadGroups = async () => {
 		try {
 			const token = localStorage.token;
-			groups = await getGroups(token);
+			if ($user.role === 'admin') {
+				groups = await getGroups(token);
+			}
 		} catch (error) {
 			console.error('Failed to load groups:', error);
 			toast.error($i18n.t('Failed to load groups'));
+		}
+	};
+	
+	const loadPublicGroups = async () => {
+		try {
+			const token = localStorage.token;
+			publicGroups = await getPublicGroups(token);
+		} catch (error) {
+			console.error('Failed to load public groups:', error);
+			toast.error($i18n.t('Failed to load public groups'));
+		}
+	};
+	
+	const loadMyGroups = async () => {
+		try {
+			const token = localStorage.token;
+			myGroups = await getMyGroups(token);
+		} catch (error) {
+			console.error('Failed to load my groups:', error);
+			toast.error($i18n.t('Failed to load my groups'));
 		}
 	};
 	
@@ -39,6 +64,36 @@
 		} catch (error) {
 			console.error('Failed to load users:', error);
 			toast.error($i18n.t('Failed to load users'));
+		}
+	};
+	
+	const handleJoinGroup = async (groupId) => {
+		try {
+			const token = localStorage.token;
+			await joinGroup(token, groupId);
+			toast.success($i18n.t('Successfully joined group'));
+			
+			// Reload groups
+			await Promise.all([loadPublicGroups(), loadMyGroups()]);
+		} catch (error) {
+			console.error('Failed to join group:', error);
+			toast.error($i18n.t('Failed to join group'));
+		}
+	};
+	
+	const handleLeaveGroup = async (groupId) => {
+		if (confirm($i18n.t('Are you sure you want to leave this group?'))) {
+			try {
+				const token = localStorage.token;
+				await leaveGroup(token, groupId);
+				toast.success($i18n.t('Successfully left group'));
+				
+				// Reload groups
+				await Promise.all([loadPublicGroups(), loadMyGroups()]);
+			} catch (error) {
+				console.error('Failed to leave group:', error);
+				toast.error($i18n.t('Failed to leave group'));
+			}
 		}
 	};
 	
@@ -130,9 +185,38 @@
 		return user ? user.name : userId;
 	};
 	
+	const isUserMember = (group) => {
+		return (group.user_ids || []).includes($user.id);
+	};
+	
 	const handleGoBack = () => {
 		goto('/');
-	}
+	};
+	
+	const switchTab = (tab) => {
+		activeTab = tab;
+	};
+	
+	const getCurrentGroups = () => {
+		if ($user.role === 'admin') {
+			switch (activeTab) {
+				case 'public':
+					return publicGroups;
+				case 'my':
+					return myGroups;
+				default:
+					return groups;
+			}
+		} else {
+			switch (activeTab) {
+				case 'my':
+					return myGroups;
+				default:
+					return publicGroups;
+			}
+		}
+	};
+	
 	onMount(async () => {
 		if (!$user) {
 			goto('/auth');
@@ -140,7 +224,14 @@
 		}
 		
 		loading = true;
-		await Promise.all([loadGroups(), loadUsers()]);
+		
+		const loadPromises = [loadPublicGroups(), loadMyGroups()];
+		
+		if ($user.role === 'admin') {
+			loadPromises.push(loadGroups(), loadUsers());
+		}
+		
+		await Promise.all(loadPromises);
 		loading = false;
 	});
 </script>
@@ -154,7 +245,7 @@
 		<!-- Header -->
 		<div class="mb-8">
 			<div class="flex justify-between items-center">
-				<div class = "flex items-center">
+				<div class="flex items-center">
 					<button
 						on:click={handleGoBack}
 						class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
@@ -167,7 +258,7 @@
 						{$i18n.t('Groups')}
 					</h1>
 					<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-						{$i18n.t('Manage user groups and permissions')}
+						{$user.role === 'admin' ? $i18n.t('Manage user groups and permissions') : $i18n.t('Discover and join groups')}
 					</p>
 				</div>
 				
@@ -182,6 +273,32 @@
 			</div>
 		</div>
 		
+		<!-- Tabs -->
+		<div class="mb-6">
+			<nav class="flex space-x-8" aria-label="Tabs">
+				{#if $user.role === 'admin'}
+					<button
+						on:click={() => switchTab('all')}
+						class="py-2 px-1 border-b-2 font-medium text-sm transition-colors {activeTab === 'all' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+					>
+						{$i18n.t('All Groups')}
+					</button>
+				{/if}
+				<button
+					on:click={() => switchTab('public')}
+					class="py-2 px-1 border-b-2 font-medium text-sm transition-colors {activeTab === 'public' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+				>
+					{$i18n.t('Public Groups')}
+				</button>
+				<button
+					on:click={() => switchTab('my')}
+					class="py-2 px-1 border-b-2 font-medium text-sm transition-colors {activeTab === 'my' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+				>
+					{$i18n.t('My Groups')}
+				</button>
+			</nav>
+		</div>
+		
 		{#if loading}
 			<div class="flex justify-center items-center py-12">
 				<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -189,7 +306,7 @@
 		{:else}
 			<!-- Groups List -->
 			<div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-				{#each groups as group (group.id)}
+				{#each getCurrentGroups() as group (group.id)}
 					<div class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
 						<div class="flex justify-between items-start mb-4">
 							<div>
@@ -199,10 +316,49 @@
 								<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
 									{group.description || $i18n.t('No description')}
 								</p>
+								
+								<!-- Group visibility indicator -->
+								<div class="mt-2">
+									{#if group.is_public}
+										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+											<svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+												<path d="M10 2L3 7v11a1 1 0 001 1h3v-8h6v8h3a1 1 0 001-1V7l-7-5z"/>
+											</svg>
+											{$i18n.t('Public')}
+										</span>
+									{:else}
+										<span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+											<svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+												<path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+											</svg>
+											{$i18n.t('Private')}
+										</span>
+									{/if}
+								</div>
 							</div>
 							
-							{#if $user.role === 'admin' || group.user_id === $user.id}
-								<div class="flex space-x-2">
+							<div class="flex space-x-2">
+								<!-- Join/Leave buttons for regular users -->
+								{#if $user.role !== 'admin'}
+									{#if isUserMember(group)}
+										<button
+											on:click={() => handleLeaveGroup(group.id)}
+											class="bg-red-100 hover:bg-red-200 text-red-800 dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800 px-3 py-1 rounded-md text-sm font-medium transition-colors"
+										>
+											{$i18n.t('Leave')}
+										</button>
+									{:else if group.is_public && group.join_policy === 'open'}
+										<button
+											on:click={() => handleJoinGroup(group.id)}
+											class="bg-blue-100 hover:bg-blue-200 text-blue-800 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 px-3 py-1 rounded-md text-sm font-medium transition-colors"
+										>
+											{$i18n.t('Join')}
+										</button>
+									{/if}
+								{/if}
+								
+								<!-- Admin controls -->
+								{#if $user.role === 'admin' || group.user_id === $user.id}
 									<button
 										on:click={() => handleEditGroup(group)}
 										class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
@@ -221,8 +377,8 @@
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
 										</svg>
 									</button>
-								</div>
-							{/if}
+								{/if}
+							</div>
 						</div>
 						
 						<!-- Members -->
@@ -253,7 +409,7 @@
 					</div>
 				{/each}
 				
-				{#if groups.length === 0}
+				{#if getCurrentGroups().length === 0}
 					<div class="col-span-full text-center py-12">
 						<div class="mx-auto h-12 w-12 text-gray-400">
 							<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,10 +417,10 @@
 							</svg>
 						</div>
 						<h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-							{$i18n.t('No groups')}
+							{activeTab === 'my' ? $i18n.t('No joined groups') : $i18n.t('No groups available')}
 						</h3>
 						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-							{$i18n.t('Get started by creating a new group.')}
+							{activeTab === 'my' ? $i18n.t('Join some public groups to get started.') : ($user.role === 'admin' ? $i18n.t('Get started by creating a new group.') : $i18n.t('No public groups available to join.'))}
 						</p>
 					</div>
 				{/if}
