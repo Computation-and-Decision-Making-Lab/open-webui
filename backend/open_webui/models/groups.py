@@ -229,6 +229,8 @@ class GroupTable:
                     db.commit()
                     db.refresh(group)
 
+                    self._update_channel_acccess_for_group(group.id)
+
                 return GroupModel.model_validate(group)
         except Exception as e:
             log.exception(e)
@@ -253,10 +255,24 @@ class GroupTable:
                     db.commit()
                     db.refresh(group)
 
+                    self._update_channel_acccess_for_group(group.id)
+
                 return GroupModel.model_validate(group)
         except Exception as e:
             log.exception(e)
             return None
+
+    def _update_channel_acccess_for_group(self, group_id: str):
+        try:
+            from open_webui.models.channels import Channels
+
+            channels = Channels.get_channels()
+            for channel in channels:
+                if (channel.data and channel.data.get("group_id") == group_id and channel.access_control):
+                    log.debug(f"Channel {channel.id} access remains linked to group {group_id}")
+
+        except Exception as e:
+            log.exception(e)
 
     def is_user_member(self, group_id: str, user_id: str) -> bool:
         """Check if a user is a member of a group"""
@@ -389,13 +405,18 @@ class GroupTable:
                 if not group.user_ids:
                     group.user_ids = []
 
+                updated = False
                 for user_id in user_ids:
                     if user_id not in group.user_ids:
                         group.user_ids.append(user_id)
+                        updated = True
 
-                group.updated_at = int(time.time())
-                db.commit()
-                db.refresh(group)
+                if updated:
+                    group.updated_at = int(time.time())
+                    db.commit()
+                    db.refresh(group)
+                    
+                    self._update_channel_acccess_for_group(group.id)
                 return GroupModel.model_validate(group)
         except Exception as e:
             log.exception(e)
@@ -413,13 +434,18 @@ class GroupTable:
                 if not group.user_ids:
                     return GroupModel.model_validate(group)
 
+                updated = False
                 for user_id in user_ids:
                     if user_id in group.user_ids:
                         group.user_ids.remove(user_id)
-
-                group.updated_at = int(time.time())
-                db.commit()
-                db.refresh(group)
+                        updated = True
+                        
+                if updated:
+                    group.updated_at = int(time.time())
+                    db.commit()
+                    db.refresh(group)
+                    
+                    self._update_channel_acccess_for_group(group.id)
                 return GroupModel.model_validate(group)
         except Exception as e:
             log.exception(e)

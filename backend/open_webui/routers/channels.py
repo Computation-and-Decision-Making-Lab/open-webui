@@ -2,36 +2,51 @@ import json
 import logging
 from typing import Optional
 
-
-from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
-from pydantic import BaseModel
-
-
-from open_webui.socket.main import sio, get_user_ids_from_room
-from open_webui.models.users import Users, UserNameResponse
-
-from open_webui.models.channels import Channels, ChannelModel, ChannelForm
-from open_webui.models.messages import (
-    Messages,
-    MessageModel,
-    MessageResponse,
-    MessageForm,
-)
-
-
+from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException,
+                     Request, status)
 from open_webui.config import ENABLE_ADMIN_CHAT_ACCESS, ENABLE_ADMIN_EXPORT
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.env import SRC_LOG_LEVELS
-
-
+from open_webui.models.channels import ChannelForm, ChannelModel, Channels
+from open_webui.models.groups import Groups
+from open_webui.models.messages import (MessageForm, MessageModel,
+                                        MessageResponse, Messages)
+from open_webui.models.users import UserNameResponse, Users
+from open_webui.socket.main import get_user_ids_from_room, sio
+from open_webui.utils.access_control import get_users_with_access, has_access
 from open_webui.utils.auth import get_admin_user, get_verified_user
-from open_webui.utils.access_control import has_access, get_users_with_access
 from open_webui.utils.webhook import post_webhook
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 router = APIRouter()
+
+
+def _has_channel_access(user_id: str, permission: str, channel: ChannelModel) -> bool:
+    """Check if user has access to channel through direct access or group membership"""
+    # Check direct access first
+    if has_access(user_id, permission, channel.access_control):
+        return True
+    
+    # Check group access
+    if not channel.access_control:
+        return False
+    
+    permission_config = channel.access_control.get(permission, {})
+    group_ids = permission_config.get("group_ids", [])
+    
+    if not group_ids:
+        return False
+    
+    # Check if user is a member of any of the required groups
+    for group_id in group_ids:
+        if Groups.is_user_member(group_id, user_id):
+            return True
+    
+    return False
+
 
 ############################
 # GetChatList
@@ -80,9 +95,7 @@ async def get_channel_by_id(id: str, user=Depends(get_verified_user)):
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "read", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -157,9 +170,7 @@ async def get_channel_messages(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "read", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -170,8 +181,8 @@ async def get_channel_messages(
     messages = []
     for message in message_list:
         if message.user_id not in users:
-            user = Users.get_user_by_id(message.user_id)
-            users[message.user_id] = user
+            message_user = Users.get_user_by_id(message.user_id)
+            users[message.user_id] = message_user
 
         replies = Messages.get_replies_by_message_id(message.id)
         latest_reply_at = replies[0].created_at if replies else None
@@ -236,9 +247,7 @@ async def post_new_message(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "write", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -337,9 +346,7 @@ async def get_channel_message(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "read", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -386,9 +393,7 @@ async def get_channel_thread_messages(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "read", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -399,8 +404,8 @@ async def get_channel_thread_messages(
     messages = []
     for message in message_list:
         if message.user_id not in users:
-            user = Users.get_user_by_id(message.user_id)
-            users[message.user_id] = user
+            message_user = Users.get_user_by_id(message.user_id)
+            users[message.user_id] = message_user
 
         messages.append(
             MessageUserResponse(
@@ -434,9 +439,7 @@ async def update_message_by_id(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "write", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -506,9 +509,7 @@ async def add_reaction_to_message(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "read", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -572,9 +573,7 @@ async def remove_reaction_by_id_and_user_id_and_name(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "read", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )
@@ -641,9 +640,7 @@ async def delete_message_by_id(
             status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
         )
 
-    if user.role != "admin" and not has_access(
-        user.id, type="read", access_control=channel.access_control
-    ):
+    if user.role != "admin" and channel.user_id != user.id and not _has_channel_access(user.id, "write", channel):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.DEFAULT()
         )

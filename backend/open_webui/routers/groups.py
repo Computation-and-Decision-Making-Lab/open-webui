@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from open_webui.config import CACHE_DIR
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.env import SRC_LOG_LEVELS
+from open_webui.models.channels import ChannelForm, Channels
 from open_webui.models.groups import (
     GroupForm,
     GroupResponse,
@@ -169,14 +170,39 @@ async def leave_group(form_data: JoinGroupForm, user=Depends(get_verified_user))
 @router.post("/create", response_model=Optional[GroupResponse])
 async def create_new_group(form_data: GroupForm, user=Depends(get_admin_user)):
     try:
+        # Create the group
         group = Groups.insert_new_group(user.id, form_data)
-        if group:
-            return group
-        else:
+        if not group:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ERROR_MESSAGES.DEFAULT("Error creating group"),
             )
+
+        # Create a corresponding channel for the group
+        try:
+            channel_form = ChannelForm(
+                name=group.name,
+                description=f"Channel for {group.name} group",
+                data={"group_id": group.id},
+                meta={"type": "group_channel"},
+                access_control={
+                    "read": {"group_ids": [group.id]},
+                    "write": {"group_ids": [group.id]},
+                },
+            )
+
+            channel = Channels.insert_new_channel("group", channel_form, user.id)
+            if channel:
+                log.info(f"Created channel {channel.id} for group {group.id}")
+            else:
+                log.warning(f"Failed to create channel for group {group.id}")
+        except Exception as channel_error:
+            log.exception(
+                f"Error creating channel for group {group.id}: {channel_error}"
+            )
+            # Don't fail the group creation if channel creation fails
+
+        return group
     except Exception as e:
         log.exception(f"Error creating a new group: {e}")
         raise HTTPException(
@@ -306,6 +332,19 @@ async def remove_users_from_group(
 @router.delete("/id/{id}/delete", response_model=bool)
 async def delete_group_by_id(id: str, user=Depends(get_admin_user)):
     try:
+        # Find and delete associated channel first
+        try:
+            channels = Channels.get_channels()
+            for channel in channels:
+                if channel.data and channel.data.get("group_id") == id:
+                    Channels.delete_channel_by_id(channel.id)
+                    log.info(f"Deleted channel {channel.id} for group {id}")
+                    break
+        except Exception as channel_error:
+            log.exception(f"Error deleting channel for group {id}: {channel_error}")
+            # Don't fail the group deletion if channel deletion fails
+
+        # Delete the group
         result = Groups.delete_group_by_id(id)
         if result:
             return result

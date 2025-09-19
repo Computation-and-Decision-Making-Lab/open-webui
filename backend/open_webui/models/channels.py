@@ -4,11 +4,22 @@ import uuid
 from typing import Optional
 
 from open_webui.internal.db import Base, get_db
+from open_webui.models.groups import Groups
 from open_webui.utils.access_control import has_access
-
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import BigInteger, Boolean, Column, String, Text, JSON
-from sqlalchemy import or_, func, select, and_, text
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    Column,
+    String,
+    Text,
+    and_,
+    func,
+    or_,
+    select,
+    text,
+)
 from sqlalchemy.sql import exists
 
 ####################
@@ -97,12 +108,45 @@ class ChannelTable:
         self, user_id: str, permission: str = "read"
     ) -> list[ChannelModel]:
         channels = self.get_channels()
-        return [
-            channel
-            for channel in channels
-            if channel.user_id == user_id
-            or has_access(user_id, permission, channel.access_control)
-        ]
+        accessible_channels = []
+
+        for channel in channels:
+            # Check if user owns the channel
+            if channel.user_id == user_id:
+                accessible_channels.append(channel)
+                continue
+
+            # Check if user has direct access
+            if has_access(user_id, permission, channel.access_control):
+                accessible_channels.append(channel)
+                continue
+
+            # Check if user has access through group membership
+            if self._has_group_access(user_id, permission, channel.access_control):
+                accessible_channels.append(channel)
+                continue
+
+        return accessible_channels
+
+    def _has_group_access(
+        self, user_id: str, permission: str, access_control: Optional[dict]
+    ) -> bool:
+        """Check if user has access to channel through group membership"""
+        if not access_control:
+            return False
+
+        permission_config = access_control.get(permission, {})
+        group_ids = permission_config.get("group_ids", [])
+
+        if not group_ids:
+            return False
+
+        # Check if user is a member of any of the required groups
+        for group_id in group_ids:
+            if Groups.is_user_member(group_id, user_id):
+                return True
+
+        return False
 
     def get_channel_by_id(self, id: str) -> Optional[ChannelModel]:
         with get_db() as db:
@@ -118,6 +162,7 @@ class ChannelTable:
                 return None
 
             channel.name = form_data.name
+            channel.description = form_data.description
             channel.data = form_data.data
             channel.meta = form_data.meta
             channel.access_control = form_data.access_control
